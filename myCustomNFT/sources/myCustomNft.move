@@ -13,6 +13,7 @@ module myAddress::myCustomNFT {
     use aptos_framework::resource_account;
     use aptos_framework::timestamp;
     use aptos_framework::transaction_context;
+    use aptos_framework::event::{Self, EventHandle};
 
     struct HeroNft has key {
         name : String,
@@ -28,6 +29,15 @@ module myAddress::myCustomNFT {
     struct Monster has key ,drop {
         hp : u64,
         strength : u64,
+    }
+
+    struct EventStore has key {
+        kill_event: EventHandle<HuntSuccessEvent>,
+    }
+
+
+    struct HuntSuccessEvent has drop, store {
+        killer : address
     }
 
     const E_NO_ADMIN: u64 = 0;
@@ -86,6 +96,12 @@ module myAddress::myCustomNFT {
                 power: 0,
                 resource_cap : resource_signer_cap
         });
+
+        move_to<EventStore>(
+            owner_account, EventStore{
+                kill_event : account::new_event_handle<HuntSuccessEvent>(owner_account),
+            }
+        )
     }
 
     public entry fun mint_nft(
@@ -131,8 +147,8 @@ module myAddress::myCustomNFT {
 
 
         let token_data_id = token::create_token_data_id(signer::address_of(&resource_signer_from_cap), nft_data.name, token_name );
-        token::opt_in_direct_transfer(sender, true);
         token::mint_token_to(&resource_signer_from_cap, receiver_address, token_data_id, 1);
+        token::opt_in_direct_transfer(sender, true);
 
         nft_data.minted = nft_data.minted+1;
 
@@ -152,7 +168,7 @@ module myAddress::myCustomNFT {
 
     public entry fun hunt_monster(
         sender :  &signer,
-    ) : bool acquires HeroNft, Monster {
+    ) : bool acquires HeroNft, Monster, EventStore {
         let sender_address = signer::address_of(sender);
 
         let nft_data = borrow_global_mut<HeroNft>(sender_address);
@@ -172,6 +188,14 @@ module myAddress::myCustomNFT {
         let heal_amount = monster_strength * random_heal_number;
 
         if(attack_power > monster_hp) {
+            let event_store = borrow_global_mut<EventStore>(sender_address);
+            let kill_event = HuntSuccessEvent {
+                killer : sender_address,
+            };
+            event::emit_event<HuntSuccessEvent>(
+                &mut event_store.kill_event,
+                kill_event
+            );
             let my_resource: Monster = move_from<Monster>(@myAddress);
             return true;
         };
