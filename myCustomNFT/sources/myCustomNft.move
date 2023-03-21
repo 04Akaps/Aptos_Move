@@ -208,6 +208,7 @@ module myAddress::myCustomNFT {
     public entry fun create_monster_by_owner ( 
         sender : &signer
     ) {
+        // exists로 검증 필요
         assert(signer::address_of(sender) == @myAddress, E_NO_ADMIN);
 
         move_to<Monster>(
